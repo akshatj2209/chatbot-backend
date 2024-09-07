@@ -1,0 +1,67 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(.github/|.art/)
+      - id: end-of-file-fixer
+        exclude: ^(.github/|.art/)
+      - id: debug-statements
+
+  - repo: https://github.com/myint/autoflake
+    rev: v1.4
+    hooks:
+      - id: autoflake
+        args:
+          [
+            "--in-place",
+            "--remove-unused-variable",
+            "--ignore-init-module-imports",
+            "--remove-all-unused-imports",
+          ]
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.1.0
+    hooks:
+      - id: pyupgrade
+        args: ["--py3-plus"]
+
+  # - repo: https://github.com/asottile/seed-isort-config
+  #   rev: v2.2.0
+  #   hooks:
+  #     - id: seed-isort-config
+
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.9.1
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/ambv/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+        language_version: python3.10
+
+  - repo: local
+    hooks:
+      - id: flake8
+        name: flake8
+        types: [python]
+        language: system
+        entry: poetry run flake8 --config .flake8
+        exclude: run.py
+
+  # - repo: local
+  #   hooks:
+  #     - id: pytest-check
+  #       name: pytest-check
+  #       entry: pytest
+  #       language: system
+  #       verbose: true
+  #       pass_filenames: false
+  #       always_run: true
+
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.27.1
+  #   hooks:
+  #     - id: markdownlint
