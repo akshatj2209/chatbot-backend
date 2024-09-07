@@ -50,18 +50,3 @@ repos:
         language: system
         entry: poetry run flake8 --config .flake8
         exclude: run.py
-
-  # - repo: local
-  #   hooks:
-  #     - id: pytest-check
-  #       name: pytest-check
-  #       entry: pytest
-  #       language: system
-  #       verbose: true
-  #       pass_filenames: false
-  #       always_run: true
-
-  # - repo: https://github.com/igorshubovych/markdownlint-cli
-  #   rev: v0.27.1
-  #   hooks:
-  #     - id: markdownlint
