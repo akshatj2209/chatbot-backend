@@ -51,6 +51,13 @@ async def send_chat_message(
     # Prepare conversation history
     history = [msg.versions[-1].content for msg in conversation.messages[-5:]]  # Last 5 messages
     
+    # Find the last AI message to set as parent for the new user message
+    last_ai_message = next((msg for msg in reversed(conversation.messages) if msg.sender == "ai"), None)
+    
+    if last_ai_message:
+        message.parent_id = last_ai_message.id
+        message.parent_version = last_ai_message.current_version
+    
     # Save user message
     user_message = await crud_conversation.add_message(db, conv_id, message)
     if not user_message:
