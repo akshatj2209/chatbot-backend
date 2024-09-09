@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
-from typing import List, Optional
+from typing import List, Optional, Set
 from datetime import datetime
 
 # Importing our schemas
@@ -40,6 +40,54 @@ class ConversationCRUD:
     async def delete_conversation(db: AsyncIOMotorDatabase, conversation_id: ObjectId) -> bool:
         result = await db.conversations.delete_one({"_id": conversation_id})
         return result.deleted_count > 0
+
+    @staticmethod
+    async def delete_message(db: AsyncIOMotorDatabase, conversation_id: ObjectId, message_id: ObjectId) -> bool:
+        conversation = await ConversationCRUD.get_conversation(db, conversation_id)
+        if not conversation:
+            return False
+
+        # Find the message to delete
+        message_to_delete = next((m for m in conversation.messages if m.id == message_id), None)
+        if not message_to_delete:
+            return False
+
+        # Collect all descendant message IDs
+        messages_to_delete = ConversationCRUD._collect_descendant_messages(conversation.messages, message_id)
+        messages_to_delete.add(message_id)
+
+        # If we're deleting all messages, delete the entire conversation
+        if len(messages_to_delete) == len(conversation.messages):
+            result = await db.conversations.delete_one({"_id": conversation_id})
+            return result.deleted_count > 0
+
+        # Update the parent's child_messages
+        if message_to_delete.parent_id:
+            await db.conversations.update_one(
+                {"_id": conversation_id, "messages._id": message_to_delete.parent_id},
+                {"$unset": {f"messages.$.versions.$[ver].child_messages.{str(message_id)}": ""}},
+                array_filters=[{"ver.id": message_to_delete.parent_version}]
+            )
+
+        # Delete all collected messages
+        result = await db.conversations.update_one(
+            {"_id": conversation_id},
+            {
+                "$pull": {"messages": {"_id": {"$in": list(messages_to_delete)}}},
+                "$set": {"updated_at": datetime.utcnow()}
+            }
+        )
+
+        return result.modified_count > 0
+
+    @staticmethod
+    def _collect_descendant_messages(messages: List[Message], parent_id: ObjectId) -> Set[ObjectId]:
+        descendants = set()
+        for message in messages:
+            if message.parent_id == parent_id:
+                descendants.add(message.id)
+                descendants.update(ConversationCRUD._collect_descendant_messages(messages, message.id))
+        return descendants
 
     @staticmethod
     async def add_message(db: AsyncIOMotorDatabase, conversation_id: ObjectId, message: MessageCreate) -> Optional[Message]:
@@ -108,45 +156,6 @@ class ConversationCRUD:
                         if updated_message.id == message_id:
                             return updated_message
         return None
-
-    @staticmethod
-    async def delete_message(db: AsyncIOMotorDatabase, conversation_id: ObjectId, message_id: ObjectId) -> bool:
-        # Find the message and its child messages
-        conversation = await ConversationCRUD.get_conversation(db, conversation_id)
-        if not conversation:
-            return False
-
-        def find_child_messages(messages, target_id, child_ids):
-            for msg in messages:
-                if msg.id == target_id:
-                    for version in msg.versions:
-                        child_ids.extend(version.child_messages.keys())
-                    return True
-                for version in msg.versions:
-                    if target_id in version.child_messages:
-                        child_ids.extend(version.child_messages.keys())
-                        return True
-            return False
-
-        child_ids = []
-        find_child_messages(conversation.messages, message_id, child_ids)
-        
-        # Convert child_ids to ObjectId
-        child_ids = [ObjectId(id) for id in child_ids]
-        all_ids_to_delete = [message_id] + child_ids
-
-        # Delete the message and its child messages
-        result = await db.conversations.update_one(
-            {"_id": conversation_id},
-            {
-                "$pull": {
-                    "messages": {"_id": {"$in": all_ids_to_delete}}
-                },
-                "$set": {"updated_at": datetime.utcnow()}
-            }
-        )
-
-        return result.modified_count > 0
 
     @staticmethod
     async def _update_parent_child_messages(db: AsyncIOMotorDatabase, conversation_id: ObjectId, parent_id: ObjectId, parent_version: str, child_id: str):
