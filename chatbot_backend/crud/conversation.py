@@ -171,5 +171,21 @@ class ConversationCRUD:
         cursor = db.conversations.find().skip(skip).limit(limit)
         conversations = await cursor.to_list(length=limit)
         return [Conversation(**conv) for conv in conversations]
-    
+
+    @staticmethod
+    async def change_message_version(db: AsyncIOMotorDatabase, conversation_id: ObjectId, message_id: ObjectId, version_id: str) -> Optional[Conversation]:
+        update_result = await db.conversations.update_one(
+            {"_id": conversation_id, "messages._id": message_id},
+            {
+                "$set": {
+                    "messages.$.current_version": version_id,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+
+        if update_result.modified_count:
+            return await ConversationCRUD.get_conversation(db, conversation_id)
+        return None
+
 crud_conversation = ConversationCRUD()
