@@ -140,7 +140,7 @@ async def change_message_version(
         return updated_conversation.messages
     raise HTTPException(status_code=404, detail="Conversation, message, or version not found")
 
-@router.delete("/conversations/{conversation_id}/messages/{message_id}", response_model=bool)
+@router.delete("/conversations/{conversation_id}/messages/{message_id}", response_model=List[MessageOut])
 async def delete_message(
     conversation_id: str = Path(..., description="The ID of the conversation"),
     message_id: str = Path(..., description="The ID of the message to delete"),
@@ -149,9 +149,15 @@ async def delete_message(
     conv_id = validate_object_id(conversation_id)
     msg_id = validate_object_id(message_id)
     deleted = await crud_conversation.delete_message(db, conv_id, msg_id)
-    if deleted:
-        return True
-    raise HTTPException(status_code=404, detail="Message not found or couldn't be deleted")
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Message not found or couldn't be deleted")
+    
+    # Fetch the updated conversation
+    updated_conversation = await crud_conversation.get_conversation(db, conv_id)
+    if not updated_conversation:
+        raise HTTPException(status_code=404, detail="Failed to retrieve updated conversation")
+    
+    return updated_conversation.messages
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationOut)
 async def get_conversation(
