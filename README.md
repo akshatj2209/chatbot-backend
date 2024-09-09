@@ -34,6 +34,15 @@ This project contains the backend for a chatbot application. It's built with Fas
    poetry install
    ```
 
+4. Set up environment variables:
+Create a .env file in the root directory with the following content:
+
+```
+MONGODB_URL=mongodb://localhost:27017
+DATABASE_NAME=chatbot_db
+```
+Adjust these values according to your MongoDB setup if necessary.
+
 ## Running the Application
 
 1. Activate the Poetry shell:
