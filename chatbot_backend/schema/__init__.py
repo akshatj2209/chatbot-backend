@@ -1,1 +1,1 @@
-from .conversation import MessageVersionCreate, MessageCreate, ConversationCreate, MessageVersionOut, MessageOut, ConversationOut, MessageUpdate, ConversationUpdate    
+from .conversation import MessageVersionCreate, MessageCreate, ConversationCreate, MessageVersionOut, MessageOut, ConversationOut, MessageUpdate, ConversationUpdate, CreateResponse, UpdateResponse    

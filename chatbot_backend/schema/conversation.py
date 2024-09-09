@@ -75,5 +75,15 @@ class ConversationOut(BaseModel):
 class MessageUpdate(BaseModel):
     content: str = Field(..., min_length=1)
 
+class CreateResponse(BaseModel):
+    message: MessageCreate
+    language: str
+    context: str
+
+class UpdateResponse(BaseModel):
+    message: MessageUpdate
+    language: str
+    context: str
+
 class ConversationUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1)

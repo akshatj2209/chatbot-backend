@@ -9,6 +9,8 @@ from chatbot_backend.models import Message
 from chatbot_backend.crud import crud_conversation
 import google.generativeai as genai
 from chatbot_backend.config import settings
+from chatbot_backend.api.endpoints.constants import prompt_mappings
+from chatbot_backend.schema.conversation import CreateResponse, UpdateResponse
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -38,7 +40,7 @@ async def create_conversation(conversation: ConversationCreate, db: AsyncIOMotor
 @router.post("/conversations/{conversation_id}/messages", response_model=List[MessageOut])
 async def send_chat_message(
     conversation_id: str = Path(..., description="The ID of the conversation"),
-    message: MessageCreate = ...,
+    data: CreateResponse = ...,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     conv_id = validate_object_id(conversation_id)
@@ -55,16 +57,18 @@ async def send_chat_message(
     last_ai_message = next((msg for msg in reversed(conversation.messages) if msg.sender == "ai"), None)
     
     if last_ai_message:
-        message.parent_id = last_ai_message.id
-        message.parent_version = last_ai_message.current_version
+        data.message.parent_id = last_ai_message.id
+        data.message.parent_version = last_ai_message.current_version
     
     # Save user message
-    user_message = await crud_conversation.add_message(db, conv_id, message)
+    user_message = await crud_conversation.add_message(db, conv_id, data.message)
     if not user_message:
         raise HTTPException(status_code=500, detail="Failed to save user message")
     
+    system_prompt = prompt_mappings[data.context] + " " + "Generate the response in " + data.language + " language."
+    
     # Generate AI response
-    ai_response_content = await generate_ai_response(history, message.content)
+    ai_response_content = await generate_ai_response(history, system_prompt + " " + data.message.content)
     
     # Save AI response
     ai_message = await crud_conversation.add_message(
@@ -86,14 +90,14 @@ async def send_chat_message(
 async def edit_message(
     conversation_id: str = Path(..., description="The ID of the conversation"),
     message_id: str = Path(..., description="The ID of the message to edit"),
-    message_update: MessageUpdate = ...,
+    data: UpdateResponse = ...,
     db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     conv_id = validate_object_id(conversation_id)
     msg_id = validate_object_id(message_id)
     
     # Update the message
-    updated_message = await crud_conversation.update_message(db, conv_id, msg_id, message_update)
+    updated_message = await crud_conversation.update_message(db, conv_id, msg_id, data.message)
     if not updated_message:
         raise HTTPException(status_code=404, detail="Message not found or couldn't be updated")
     
@@ -106,7 +110,8 @@ async def edit_message(
     history = [msg.versions[-1].content for msg in conversation.messages[-5:]]  # Last 5 messages
     
     # Generate new AI response based on the edited message
-    ai_response_content = await generate_ai_response(history, message_update.content)
+    system_prompt = prompt_mappings[data.context] + " " + "Generate the response in " + data.language + " language."
+    ai_response_content = await generate_ai_response(history, system_prompt + " " + data.message.content)
     
     # Save new AI response
     ai_message = await crud_conversation.add_message(
